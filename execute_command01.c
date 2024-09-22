@@ -28,8 +28,11 @@ typedef struct Command
 {
 	char			*command;
 	char			**arguments;
+	bool			prev_input_file;
 	char			*input_file;
+	bool			prev_output_file;
 	char			*output_file;
+	bool			prev_append_file;
 	char			*append_file;
 	char			*heredoc_delim;
 	char			*close_heredoc_delim;
@@ -52,6 +55,7 @@ typedef struct s_parse_context {
 	int			arg_index;
 } t_parse_context;
 
+//*/ ******************   check funtion   ******************************
 void	print_command_structure(t_command *cmd)
 {
 	int i;
@@ -100,6 +104,8 @@ void	print_command_structure(t_command *cmd)
 		cmd = cmd->next;
 	}
 }
+
+//*/
 
 int	ft_strlen(char *str)
 {
@@ -302,7 +308,6 @@ char	*handle_non_token_redirection(t_TokenizerState *state, char *token)
 char	*handle_double_redirection(t_TokenizerState *state)
 {
 	char	*saveptr_backup;
-	char	*result;
 	int	i;
 
 	if(*state->saveptr == '<' && *(state->saveptr + 1) == '<')
@@ -350,10 +355,8 @@ char	*handle_redirection_strtok(t_TokenizerState *state, char *token)
 {
 	char	*result;
 
-
 	if (state->saveptr != token)
 	{
-		printf("393 result %s\n", result);
 		result = handle_non_token_redirection(state, token);
 		if (result)
 			return (result);
@@ -465,9 +468,7 @@ char	*my_strtok(t_TokenizerState *state, char *str, const char *delim)
 		state->heredoc_delim[0] = '\0';
 		state->prev_heredoc = false;
 	}
-
 	token = initialize_token(state, str, delim);
-
 	if (!token)
 		return (NULL);
 
@@ -477,7 +478,6 @@ char	*my_strtok(t_TokenizerState *state, char *str, const char *delim)
 
 	if (*state->saveptr == '\0')
 		state->saveptr = NULL;
-
 	return (token);
 }
 
@@ -554,8 +554,11 @@ t_command	*create_command(int max_args)
 		exit(EXIT_FAILURE);
 	}
 	cmd->command = NULL;
+	cmd->prev_input_file  = false;
 	cmd->input_file = NULL;
+	cmd->prev_output_file  = false;
 	cmd->output_file = NULL;
+	cmd->prev_append_file  = false;
 	cmd->append_file = NULL;
 	cmd->heredoc_content = NULL;
 	cmd->heredoc_delim = NULL;
@@ -606,21 +609,26 @@ void	handle_input_redirection(t_command *current, char **token, t_TokenizerState
 {
 	*token = my_strtok(state, NULL, " \t\n");
 	if (*token)
-		current->input_file = strdup(*token);
+		current->prev_input_file = true;
+//		current->input_file = strdup(*token);
 }
 
+//*/
 void	handle_output_redirection_parsel(t_command *current, char **token, t_TokenizerState *state)
 {
 	*token = my_strtok(state, NULL, " \t\n");
 	if (*token)
-		current->output_file = strdup(*token);
+		current->prev_output_file = true;
+//		current->output_file = strdup(*token);
 }
+//*/
 
 void	handle_append_redirection(t_command *current, char **token, t_TokenizerState *state)
 {
 	*token = my_strtok(state, NULL, " \t\n");
 	if (*token)
-		current->append_file = strdup(*token);
+		current->prev_append_file = true;
+//		current->append_file = strdup(*token);
 }
 
 void	handle_heredoc_redirection(t_command *current, char **token, t_TokenizerState *state)
@@ -668,6 +676,42 @@ void	handle_heredoc(t_command *current, char *token)
 		current->heredoc_delim = strdup(token);
 }
 
+void	handle_input_file(t_command *current, char *token)
+{
+	if (current->prev_input_file)
+	{
+		if (token != NULL)
+		{
+			current->input_file = strdup(token);
+			current->prev_input_file = false;
+		}
+	}
+}
+
+void	handle_output_file(t_command *current, char *token)
+{
+	if (current->prev_output_file)
+	{
+		if (token != NULL)
+		{
+			current->output_file = strdup(token);
+			current->prev_output_file = false;
+		}
+	}
+}
+
+void	handle_append_file(t_command *current, char *token)
+{
+	if (current->prev_append_file)
+	{
+		if (token != NULL)
+		{
+			current->append_file = strdup(token);
+			current->prev_append_file = false;
+		}
+	}
+}
+
 void	handle_next_heredoc(t_command *current, char *token)
 {
 	if (token != NULL)
@@ -699,10 +743,18 @@ void	handle_arguments(t_command *current, char *token, int *arg_index, int max_a
 		free(unquoted_token);
 		return;
 	}
+	if (current->prev_input_file)
+		handle_input_file(current, token);
+	if (current->prev_output_file)
+		handle_output_file(current, token);
+	if (current->prev_append_file)
+		handle_append_file(current, token);
+	
 
 	if (current->prev_heredoc)
 		handle_heredoc(current, token);
-	else if (!current->next_heredoc)
+	else if (!current->next_heredoc && !current->prev_input_file && \
+		!current->prev_output_file&& !current->prev_append_file)
 	{
 		if (current->arguments[*arg_index] != NULL)
 		    free(current->arguments[*arg_index]);
@@ -771,6 +823,8 @@ t_command	*parse_line(char *line)
 	context.state = &state;
 	
 	process_tokens(&context, line);
+	
+	print_command_structure(context.current);
 
 	return (context.head);
 }
@@ -1344,20 +1398,26 @@ pid_t	create_child_process(void)
 
 void	handle_redirection_process(t_command *cmd)
 {
-	if (cmd->prev_heredoc)  // If a here-document is active
-	{
-		int heredoc_pipe[2];
-		
+	int heredoc_pipe[2];
+	if (cmd->heredoc_delim != NULL && ft_strcmp(cmd->heredoc_delim, \
+		cmd->close_heredoc_delim) == 0)
+	{	
 		if (pipe(heredoc_pipe) == -1)
 		{
 			write(STDERR_FILENO, "Error creating heredoc pipe\n", 28);
 			exit(EXIT_FAILURE);
 		}
-		write(heredoc_pipe[1], cmd->heredoc_content, strlen(cmd->heredoc_content));  // Write heredoc contents
-		close(heredoc_pipe[1]);  // Close the write end
-		dup2(heredoc_pipe[0], STDIN_FILENO);  // Redirect stdin from the pipe
+		write(heredoc_pipe[1], cmd->heredoc_content, strlen(cmd->heredoc_content));
+		write(heredoc_pipe[1], "\n", 1);
+		close(heredoc_pipe[1]);
+		dup2(heredoc_pipe[0], STDIN_FILENO);
 		close(heredoc_pipe[0]);
 	}
+/*/
+	else if (ft_strcmp(cmd->heredoc_delim, \
+		cmd->close_heredoc_delim) != 0)
+		write(heredoc_pipe[1], "heredoc_delimiter\n", 18);
+//*/	
 	if (cmd->input_fd != -1)
 	{
 		dup2(cmd->input_fd, STDIN_FILENO);
@@ -1672,7 +1732,7 @@ void	execute_loop(void)
 			continue ;
 		add_to_history(command);
 		cmd = parse_command(command);
-		free(command);
+		free(command);		
 		if (cmd == NULL)
 			continue ;
 		status = execute_and_reset(cmd);
