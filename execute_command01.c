@@ -216,42 +216,6 @@ size_t	my_strspn(const char *s1, const char *s2)
 	return (count);
 }
 
-/*/
-int	check_command_null(t_command *cmd)
-{
-	const char	*error_msg;
-
-	error_msg = "Command is NULL\n";
-	if (cmd == NULL)
-	{
-		write(STDERR_FILENO, error_msg, strlen(error_msg));
-		return (-1);
-	}
-	return (0);
-}
-
-int	initialize_command(t_command *cmd)
-{
-	if (check_command_null(cmd) == -1)
-		return (-1);
-	if (handle_input_redirection(cmd) == -1)
-		return (-1);
-	if (cmd->output_file != NULL)
-	{
-		if (create_output_file(cmd) == -1)
-			return (-1);
-	}
-	else if (cmd->append_file != NULL)
-	{
-		if (append_output_file(cmd) == -1)
-			return (-1);
-	}
-	set_environment_variables(cmd);
-	cmd->executed_successfully = 0;
-	return (0);
-}
-//*/
-
 char	*initialize_token(t_TokenizerState *state, char *str, \
 		const char *delim)
 {
@@ -488,61 +452,6 @@ char *handle_quoted_strings(t_TokenizerState *state, const char *delim)
 		 state->prev_heredoc = true;
 	return token;
 }
-/*/
-char	*handle_quoted_strings(t_TokenizerState *state, const char *delim)
-{
-	char	*token;
-	size_t	heredoc_delim_len;
-
-	token = state->saveptr;
-	while (*state->saveptr)
-	{
-		if (entering_quoted_string(state))
-			continue ;
-		if (exiting_quoted_string(state))
-			continue ;
-		if (state->prev_heredoc)
-		{
-			heredoc_delim_len = strlen(state->heredoc_delim);
-
-            		if (strncmp(state->saveptr, state->heredoc_delim, heredoc_delim_len) == 0)			
-			{
-			        if (*(state->saveptr + heredoc_delim_len) == '\n' || *(state->saveptr + heredoc_delim_len) == '\0')
-			        {
-				    if (*(state->saveptr - 1) == '\n')
-				    {
-					*(state->saveptr - 1) = '\0';
-					state->prev_heredoc = false;
-				    	break;
-				    }
-			        }
-			}
-
-			state->saveptr++;
-			continue;
-		}
-
-		if (strchr("<>|", *state->saveptr) && !state->in_quotes)
-		{
-			if (handle_special_characters(state, &token))
-				return (token);
-		}		
-		else if (handle_delimiters(state, delim) && !state->prev_heredoc)
-			break ;
-
-		state->saveptr++;
-	}
-
-	if (state->saveptr == NULL)
-		return NULL;
-
-	if (ft_strcmp(state->heredoc_delim, token) == 0)
-		 state->prev_heredoc = true;
-
-	return (token);
-}
-
-//*/
 
 char	*my_strtok(t_TokenizerState *state, char *str, const char *delim)
 {
@@ -838,26 +747,6 @@ void	process_tokens(t_parse_context *context, char *line)
 	
 	expand_all_arguments(context->head);
 	
-/*/
-    t_command *cmd = context->head;
-	while (cmd != NULL) {
-        t_command *next_cmd = cmd->next;
-        if (cmd->command != NULL) {
-            free(cmd->command);
-        }
-        for (int i = 0; i < context->max_args; ++i) {
-            if (cmd->arguments[i] != NULL) {
-                free(cmd->arguments[i]);
-            }
-        }
-        if (cmd->close_heredoc_delim != NULL) {
-            free(cmd->close_heredoc_delim);
-        }
-        free(cmd->arguments);
-        free(cmd);
-        cmd = next_cmd;
-    }
-//*/
 }
 
 
