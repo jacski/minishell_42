@@ -55,7 +55,7 @@ typedef struct s_parse_context {
 	int			arg_index;
 } t_parse_context;
 
-//*/ ******************   check funtion   ******************************
+/*/ ******************   check funtion   ******************************
 void	print_command_structure(t_command *cmd)
 {
 	int i;
@@ -743,14 +743,7 @@ void	handle_arguments(t_command *current, char *token, int *arg_index, int max_a
 		free(unquoted_token);
 		return;
 	}
-	if (current->prev_input_file)
-		handle_input_file(current, token);
-	if (current->prev_output_file)
-		handle_output_file(current, token);
-	if (current->prev_append_file)
-		handle_append_file(current, token);
 	
-
 	if (current->prev_heredoc)
 		handle_heredoc(current, token);
 	else if (!current->next_heredoc && !current->prev_input_file && \
@@ -761,6 +754,12 @@ void	handle_arguments(t_command *current, char *token, int *arg_index, int max_a
 
 		current->arguments[(*arg_index)++] = strdup(unquoted_token);
 	}
+	else if (current->prev_input_file)
+		handle_input_file(current, token);
+	else if (current->prev_output_file)
+		handle_output_file(current, token);
+	else if (current->prev_append_file)
+		handle_append_file(current, token);
 	else
 		handle_next_heredoc(current, token);
 	free(unquoted_token);
@@ -823,8 +822,6 @@ t_command	*parse_line(char *line)
 	context.state = &state;
 	
 	process_tokens(&context, line);
-	
-	print_command_structure(context.current);
 
 	return (context.head);
 }
