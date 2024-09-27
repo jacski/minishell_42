@@ -1427,6 +1427,8 @@ void	handle_redirection_process(t_command *cmd)
 	}
 }
 
+
+
 void	execute_command_process(t_command *cmd)
 {
 	if (execvp(cmd->command, cmd->arguments) == -1)
@@ -1450,29 +1452,89 @@ int	wait_for_child_process(pid_t pid)
 	return (status);
 }
 
-int	create_process(t_command *cmd)
-{
-	pid_t	pid;
-	int		status;	
+char *find_command_in_path(const char *cmd) {
+    char *path = getenv("PATH");
+    if (!path || strlen(path) == 0) {
+        // PATH is not set or empty
+        return NULL;
+    }
 
-	if (check_command(cmd) == -1)
-		return (-1);
-	pid = create_child_process();
-	if (pid == -1)
-		return (-1);
-	if (pid == 0)
-	{
-		handle_redirection_process(cmd);
-		execute_command_process(cmd);
+    char *paths = strdup(path);  // Duplicate the PATH for tokenization
+    char *dir = strtok(paths, ":");  // Split the PATH by ':'
+    char *full_path = NULL;
+    size_t cmd_len = strlen(cmd);
+
+    while (dir != NULL) {
+        size_t dir_len = strlen(dir);
+        full_path = malloc(dir_len + cmd_len + 2);  // Allocate memory for "dir/cmd"
+
+        if (!full_path) {
+            perror("malloc");
+            free(paths);
+            return NULL;
+        }
+
+        // Construct the full path manually
+        strcpy(full_path, dir);      // Copy directory part
+        strcat(full_path, "/");      // Add the '/'
+        strcat(full_path, cmd);      // Add the command part
+
+        // Check if the command exists and is executable
+        if (access(full_path, X_OK) == 0) {
+            free(paths);
+            return full_path;  // Return if found
+        }
+
+        free(full_path);  // Free the memory if not found
+        dir = strtok(NULL, ":");
+    }
+    
+    free(paths);
+    return NULL;  // Command not found in PATH
+}
+
+int create_process(t_command *cmd) {
+    pid_t pid;
+    int status;
+
+    // Check if PATH is set and find the command
+    char *command_path = find_command_in_path(cmd->command);
+    if (!command_path) {
+        write(STDERR_FILENO, "Command not found or PATH is not set\n", 36);
+        return (-1);
+    }
+
+    pid = fork();  // Fork a new process
+    if (pid == -1) {
+        free(command_path);  // Free the path memory on failure
+        return (-1);  // Error in forking
+    }
+
+    if (pid == 0) {
+        // Child process
+        handle_redirection_process(cmd);
+
+        // Use execve instead of execv
+        extern char **environ;  // Get the environment variables
+        if (execve(command_path, cmd->arguments, environ) == -1) {
+            perror("execve");  // If execve fails
+            exit(EXIT_FAILURE);
+        }
+    }
+
+    // Parent process waits for the child process to finish
+    status = waitpid(pid, NULL, 0);
+    free(command_path);  // Free the allocated memory for the command path
+    if (status == -1) {
+        return (-1);  // Error while waiting
+    }
+
+	if (status == 0) {
+	    cmd->executed_successfully = 1;
+	} else {
+	    cmd->executed_successfully = 0;
 	}
-	status = wait_for_child_process(pid);
-	if (status == -1)
-		return (-1);
-	if (status == 0)
-		cmd->executed_successfully = 1;
-	else
-		cmd->executed_successfully = 0;
-	return (0);
+	    return (0);
 }
 
 int	execute_command(t_command *cmd)
@@ -1501,10 +1563,22 @@ int	execute_command(t_command *cmd)
 
 // ******************            signals            ****************************
 
-void	handle_sigint(int sig)
-{
-	(void)sig;
-	write(1, "\nminishell> ", 12);
+void sigquit_handler(int sig) {
+    (void)sig;
+
+        rl_on_new_line(); // Move to a new line
+        rl_redisplay();
+}
+
+
+void handle_sigint(int sig) {
+    (void)sig;
+
+        write(1, "\n", 1); // Just write a newline without redisplaying the prompt
+        rl_replace_line("", 0); // Clear the current line
+        rl_on_new_line(); // Move to a new line
+        rl_redisplay();
+
 }
 
 void	restore_terminal_settings(void)
@@ -1535,13 +1609,13 @@ void	setup_terminal(struct termios *term)
 		perror("tcsetattr");
 		exit(EXIT_FAILURE);
 	}
-	atexit(restore_terminal_settings);
 }
 
-void	handle_signals(void)
-{
-	signal(SIGQUIT, SIG_IGN);
-	signal(SIGINT, handle_sigint);
+void handle_signals(void) {
+    signal(SIGQUIT, sigquit_handler);
+    signal(SIGINT, SIG_IGN);
+    signal(SIGINT, handle_sigint);
+    signal(SIGTSTP, SIG_IGN); // Add this line
 }
 
 // ******************             main              ****************************
@@ -1716,10 +1790,10 @@ int	execute_and_reset(t_command *cmd)
 void	execute_loop(void)
 {
 	char		*command;
+	int exit_status = 0;
 	t_command	*cmd;
-	int			status;
 
-	cmd = NULL;
+	exit_status = 0;
 	while (1)
 	{
 		command = readline("minishell> ");
@@ -1732,16 +1806,20 @@ void	execute_loop(void)
 		free(command);		
 		if (cmd == NULL)
 			continue ;
-		status = execute_and_reset(cmd);
-		if (status == -1)
-			perror("execute_command");
+		execute_and_reset(cmd);
+		if (exit_status == 1)
+			break; // Exit the loop if g_exit_status is set to 1
 	}
 }
 
 int	main(void)
 {
+    struct termios term;
+        int exit_status;
+
 	handle_signals();
 	setup_terminal(&g_orig_term);
 	execute_loop();
-	return (0);
+	restore_terminal_settings();
+	return exit_status; // Return the exit status
 }
