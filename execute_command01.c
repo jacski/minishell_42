@@ -25,6 +25,7 @@ typedef struct TokenizerState
 }	t_TokenizerState;
 
 typedef struct Command
+
 {
 	char			*command;
 	char			**arguments;
@@ -115,6 +116,14 @@ int	ft_strlen(char *str)
 	while (str[i])
 		i++;
 	return (i);
+}
+
+int	ft_isalnum(int c)
+{
+	if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')
+		|| (c >= '0' && c <= '9'))
+		return (1);
+	return (0);
 }
 
 char	*ft_strchr(const char *str, int character)
@@ -430,6 +439,77 @@ bool process_quoted_string(t_TokenizerState *state)
 	return false;
 }
 
+size_t get_var_name_len(const char *str)
+{
+    size_t len = 0;
+    str++;  // Skip the '$'
+    
+    while (*str && (isalnum(*str) || *str == '_'))
+    {
+        len++;
+        str++;
+    }
+
+    return len;
+}
+
+void replace_with_env_value(t_TokenizerState *state, const char *var_value)
+{
+    char *new_token;
+    size_t token_len = strlen(state->saveptr);
+    size_t var_value_len = strlen(var_value);
+
+    // Calculate new token length: original token length - length of the variable + length of the variable value
+    size_t new_len = token_len - get_var_name_len(state->saveptr) + var_value_len;
+
+    // Allocate new memory for the expanded token
+    new_token = malloc(new_len + 1);  // +1 for null terminator
+    if (!new_token)
+    {
+        perror("malloc");
+        exit(EXIT_FAILURE);
+    }
+
+    // Copy part before the variable
+    char *dollar_pos = strchr(state->saveptr, '$');  // Find the position of the dollar sign
+    size_t prefix_len = dollar_pos - state->saveptr;
+    strncpy(new_token, state->saveptr, prefix_len);
+
+    // Append the environment variable value
+    strcpy(new_token + prefix_len, var_value);
+
+    // Append the remaining part of the original string after the variable name
+    const char *suffix = state->saveptr + prefix_len + get_var_name_len(state->saveptr);
+    strcpy(new_token + prefix_len + var_value_len, suffix);
+
+    // Update saveptr to point to the new token
+    state->saveptr = new_token;
+}
+
+void process_env_variable(t_TokenizerState *state)
+{
+	char *start = state->saveptr + 1;  // Skip the '$' character
+	char var_name[256];  // Adjust size as necessary
+	int i = 0;
+
+	// Extract the variable name
+	while (*start && (ft_isalnum(*start) || *start == '_'))
+	{
+		var_name[i++] = *start++;
+	}
+	var_name[i] = '\0';
+
+	// Find the environment variable value
+	char *var_value = getenv(var_name);
+	if (var_value)
+	{
+		// Substitute the variable in place of $VAR_NAME
+		replace_with_env_value(state, var_value);  // Implement this to handle replacement
+	}
+
+	state->saveptr = start;  // Move the pointer past the variable name
+}
+
 char *handle_quoted_strings(t_TokenizerState *state, const char *delim)
 {
 	char *token = state->saveptr;
@@ -444,6 +524,11 @@ char *handle_quoted_strings(t_TokenizerState *state, const char *delim)
 		{
 			if (handle_special_characters(state, &token))
 				return token;
+		}
+		if (state->in_quotes && *state->saveptr == '$')
+		{
+			process_env_variable(state);  // Handle the variable expansion
+			continue;
 		}
 		if (handle_delimiters(state, delim) && !state->prev_heredoc)
 			break;
@@ -822,6 +907,12 @@ t_command	*parse_line(char *line)
 	context.state = &state;
 	
 	process_tokens(&context, line);
+	
+	if (state.in_quotes)
+    {
+        write(2, "Error: Unclosed quote at the end of input.\n", 43);  // Print error to stderr
+        // You can handle cleanup or return an error-specific value if needed
+    }
 
 	return (context.head);
 }
@@ -1780,17 +1871,23 @@ void free_command_list(t_command *head) {
 int	execute_and_reset(t_command *cmd)
 {
 	int	status;
-
-	status = execute_command(cmd);
-	reset_pipe_fds(cmd);
-	free_command_list(cmd);
+	t_TokenizerState state;
+	
+	if (state.in_quotes == true)
+		return (0);
+	else
+	{	
+		status = execute_command(cmd);
+		reset_pipe_fds(cmd);
+		free_command_list(cmd);
+	}
 	return (status);
 }
 
 void	execute_loop(void)
 {
 	char		*command;
-	int exit_status = 0;
+	int exit_status;
 	t_command	*cmd;
 
 	exit_status = 0;
@@ -1806,7 +1903,7 @@ void	execute_loop(void)
 		free(command);		
 		if (cmd == NULL)
 			continue ;
-		execute_and_reset(cmd);
+		exit_status = execute_and_reset(cmd);
 		if (exit_status == 1)
 			break; // Exit the loop if g_exit_status is set to 1
 	}
