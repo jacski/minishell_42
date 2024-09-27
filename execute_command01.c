@@ -1889,7 +1889,11 @@ void	execute_loop(void)
 	char		*command;
 	int exit_status;
 	t_command	*cmd;
+	int in_single_quotes = 0;
+    	int in_double_quotes = 0;
 
+	in_single_quotes = 0;
+	in_double_quotes = 0;
 	exit_status = 0;
 	while (1)
 	{
@@ -1898,6 +1902,45 @@ void	execute_loop(void)
 			break ;
 		if (is_empty_command(command))
 			continue ;
+			
+			        // Check for unclosed quotes using a while loop and pointer arithmetic
+        char *ptr = command;
+         while (*ptr != '\0') {
+            if (*ptr == '\'')
+                in_single_quotes = !in_single_quotes;
+            else if (*ptr == '"')
+                in_double_quotes = !in_double_quotes;
+            ptr++;
+        }
+        
+                // If in_quotes is true, prompt for more input to close the quotes
+         while (in_single_quotes || in_double_quotes) {
+            char *more_input = readline("> ");
+            char *new_command = malloc(strlen(command) + strlen(more_input) + 2);
+            if (!new_command) {
+                perror("malloc");
+                exit(EXIT_FAILURE);
+            }
+            strcpy(new_command, command);
+            strcat(new_command, "\n");
+            strcat(new_command, more_input);
+            free(command);
+            command = new_command;
+            free(more_input);
+
+            // Check again for unclosed quotes
+            in_single_quotes = 0;
+            in_double_quotes = 0;
+            ptr = command;
+            while (*ptr != '\0') {
+                if (*ptr == '\'')
+                    in_single_quotes = !in_single_quotes;
+                else if (*ptr == '"')
+                    in_double_quotes = !in_double_quotes;
+                ptr++;
+            }
+        }
+        
 		add_to_history(command);
 		cmd = parse_command(command);
 		free(command);		
