@@ -1,4 +1,5 @@
-// to do absolute path
+// update 29/092024 14:15
+// to do value of a process
 // to do memory leaks
 
 # include <stdio.h>
@@ -1547,6 +1548,14 @@ int	wait_for_child_process(pid_t pid)
 }
 
 char *find_command_in_path(const char *cmd) {
+
+    if (cmd[0] == '/') {
+        if (access(cmd, X_OK) == 0) {
+            return strdup(cmd);  // Return a duplicate of the command if it's executable
+        } else {
+            return NULL;  // Command is not executable
+        }
+    }
     char *path = getenv("PATH");
     if (!path || strlen(path) == 0) {
         // PATH is not set or empty
