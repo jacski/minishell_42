@@ -1,3 +1,6 @@
+// to do absolute path
+// to do memory leaks
+
 # include <stdio.h>
 # include <stdlib.h>
 # include <string.h>
