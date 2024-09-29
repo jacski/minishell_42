@@ -1,5 +1,6 @@
-// update 29/092024 14:15
-// to do value of a process
+// update 30/09/2024 9:40
+// to do closing here-document
+// to do norminette
 // to do memory leaks
 
 # include <stdio.h>
@@ -233,6 +234,44 @@ size_t	my_strspn(const char *s1, const char *s2)
 		p1++;
 	}
 	return (count);
+}
+
+void my_itoa(int num, char *str) {
+    int i = 0;
+    int is_negative = 0;
+
+    if (num == 0) {
+        str[i++] = '0';
+        str[i] = '\0';
+        return;
+    }
+
+    if (num < 0) {
+        is_negative = 1;
+        num = -num;
+    }
+
+    while (num != 0) {
+        str[i++] = (num % 10) + '0';
+        num /= 10;
+    }
+
+    if (is_negative) {
+        str[i++] = '-';
+    }
+
+    str[i] = '\0';
+
+    // Reverse the string
+    int start = 0;
+    int end = i - 1;
+    while (start < end) {
+        char temp = str[start];
+        str[start] = str[end];
+        str[end] = temp;
+        start++;
+        end--;
+    }
 }
 
 char	*initialize_token(t_TokenizerState *state, char *str, \
@@ -529,7 +568,7 @@ char *handle_quoted_strings(t_TokenizerState *state, const char *delim)
 			if (handle_special_characters(state, &token))
 				return token;
 		}
-		if (state->in_quotes && *state->saveptr == '$')
+		if (state->in_quotes && state->quote_char == '"' && *state->saveptr == '$')
 		{
 			process_env_variable(state);  // Handle the variable expansion
 			continue;
@@ -1342,23 +1381,27 @@ int	process_command(t_command *cmd, int *in_fd)
 	return (0);
 }
 
-int	execute_pipeline(t_command *cmd)
-{
-	t_command	*current_cmd;
-	int			in_fd;
-	int			status;
+int	execute_pipeline(t_command *cmd) {
+    t_command	*current_cmd;
+    int			in_fd;
+    int			status;
+    int			last_status = 0;
 
-	current_cmd = cmd;
-	in_fd = 0;
-	while (current_cmd != NULL)
-	{
-		if (process_command(current_cmd, &in_fd) == -1)
-			return (-1);
-		current_cmd = current_cmd->next;
-	}
-	while (wait(&status) > 0)
-		;
-	return (0);
+    current_cmd = cmd;
+    in_fd = 0;
+    while (current_cmd != NULL) {
+        if (process_command(current_cmd, &in_fd) == -1)
+            return (-1);
+        current_cmd = current_cmd->next;
+    }
+
+    // Wait for all processes in the pipeline, capturing the last process's status
+    while (wait(&status) > 0) {
+        last_status = status;  // Store the status of the most recent process
+    }
+
+    // Extract exit code (manual equivalent of WEXITSTATUS)
+    return ((last_status >> 8) & 0xFF);  // Return the last command's exit status
 }
 
 // ******************        initialize_command       **************************
@@ -1465,6 +1508,112 @@ int	initialize_command(t_command *cmd)
 }
 
 // ******************         execute_command         **************************
+
+char* strip_spaces(char* str) {
+    // Allocate a new string to hold the stripped result
+    char* result = malloc(strlen(str) + 1);
+    if (!result) {
+        perror("malloc");
+        exit(EXIT_FAILURE);
+    }
+
+    char* ptr = result;
+    while (*str) {
+        if (!isspace((unsigned char)*str)) {
+            *ptr++ = *str;
+        }
+        str++;
+    }
+    *ptr = '\0';
+
+    return result;
+}
+
+int evaluate_expr(char *expr) {
+    // Remove spaces from the expression
+    char *clean_expr = strip_spaces(expr);
+
+    // Debug: Print the expression after stripping spaces
+    printf("Cleaned expression: %s\n", clean_expr);
+
+    // Check for supported operators
+    char *operator_pos = NULL;
+    char operator = '\0';
+
+    // Find the operator in the expression
+    if ((operator_pos = strchr(clean_expr, '+')) != NULL) {
+        operator = '+';
+    } else if ((operator_pos = strchr(clean_expr, '*')) != NULL) {
+        operator = '*';
+    } else if ((operator_pos = strchr(clean_expr, '-')) != NULL) {
+        operator = '-';
+    } else if ((operator_pos = strchr(clean_expr, '/')) != NULL) {
+        operator = '/';
+    }
+
+    // Debug: Print which operator was found
+    if (operator_pos && operator != '\0') {
+        printf("Operator found: %c\n", operator);
+    } else {
+        write(STDERR_FILENO, "No valid operator found in expression\n", 38);
+        return -1;
+    }
+
+    // Null-terminate the left operand and move the pointer past the operator
+    *operator_pos = '\0';
+    char *left_operand = clean_expr;
+    char *right_operand = operator_pos + 1;
+
+    // Debug: Print the operands before conversion
+    printf("Left operand: %s, Right operand: %s\n", left_operand, right_operand);
+
+    // Convert operands to integers
+    int left = atoi(strip_spaces(left_operand));
+    int right = atoi(strip_spaces(right_operand));
+
+    // Debug: Print the converted integer values of operands
+    printf("Evaluating: %d %c %d\n", left, operator, right);
+
+    // Perform the calculation based on the operator
+    switch (operator) {
+        case '+':
+            return left + right;
+        case '-':
+            return left - right;
+        case '*':
+            return left * right;
+        case '/':
+            if (right == 0) {
+                write(STDERR_FILENO, "Division by zero error\n", 23);
+                return -1;
+            }
+            return left / right;
+        default:
+            write(STDERR_FILENO, "Unknown operator\n", 17);
+            return -1;
+    }
+}
+
+void expand_dollar_question(char *input, int exit_status) {
+    char buffer[12];  // Buffer for the exit status string
+    char *pos = input;
+
+    // Convert exit_status to string using custom itoa
+    my_itoa(exit_status, buffer);
+
+    // Debug: Print the input before expansion
+    printf("Original input: %s\n", input);
+    
+    // Replace all occurrences of "$?" with the exit status
+    while ((pos = strstr(pos, "$?")) != NULL) {
+        memmove(pos + strlen(buffer), pos + 2, strlen(pos + 2) + 1);  // Shift the string
+        memcpy(pos, buffer, strlen(buffer));  // Insert the exit status
+        pos += strlen(buffer);  // Move past the inserted status
+    }
+
+    // Debug: Print the input after expansion
+    printf("Expanded input: %s\n", input);
+}
 
 int	check_command(t_command *cmd)
 {
@@ -1596,7 +1745,7 @@ char *find_command_in_path(const char *cmd) {
     return NULL;  // Command not found in PATH
 }
 
-int create_process(t_command *cmd) {
+int create_process(t_command *cmd, int *exit_status) {
     pid_t pid;
     int status;
 
@@ -1626,11 +1775,21 @@ int create_process(t_command *cmd) {
     }
 
     // Parent process waits for the child process to finish
-    status = waitpid(pid, NULL, 0);
-    free(command_path);  // Free the allocated memory for the command path
-    if (status == -1) {
+    if (waitpid(pid, &status, 0) == -1) {
+        free(command_path);  // Free the allocated memory for the command path
         return (-1);  // Error while waiting
     }
+
+    free(command_path);  // Free the allocated memory for the command path
+
+    // Check if the child process exited normally
+	if ((status & 0x7F) == 0) {  // Process exited normally
+	    *exit_status = (status >> 8) & 0xFF;  // Extract exit status
+	} else if ((status & 0x7F) != 0) {  // Process was terminated by a signal
+	    *exit_status = 128 + (status & 0x7F);  // Return signal number + 128
+	} else {
+	    *exit_status = -1;  // Handle other abnormal termination cases
+	}
 
 	if (status == 0) {
 	    cmd->executed_successfully = 1;
@@ -1640,28 +1799,47 @@ int create_process(t_command *cmd) {
 	    return (0);
 }
 
-int	execute_command(t_command *cmd)
-{
-	if (is_builtin(cmd))
-		return (execute_builtin(cmd));
-	else if (cmd->next)
-	{
-		if (setup_pipes(cmd) == -1)
-		{
-			write(STDERR_FILENO, "Error setting up pipes for pipeline\n", 36);
-			return (-1);
-		}
-		return (execute_pipeline(cmd));
-	}
-	else
-	{
-		if (initialize_command(cmd) == -1)
-		{
-			write(STDERR_FILENO, "Error initializing command\n", 27);
-			return (-1);
-		}
-		return (create_process(cmd));
-	}
+int execute_command(t_command *cmd, int *exit_status) {
+    if (is_builtin(cmd)) {
+        return execute_builtin(cmd);
+    } 
+    else {
+        // Regular command execution
+        if (cmd->next) {
+            if (setup_pipes(cmd) == -1) {
+                write(STDERR_FILENO, "Error setting up pipes for pipeline\n", 36);
+                return (-1);
+            }
+            return execute_pipeline(cmd);
+        } else {
+        
+		if (strcmp(cmd->command, "expr") == 0) {
+	    // Handle "expr" command
+	    char expr_buffer[128];  // Adjust size as needed
+	    if (cmd->arguments[1] && cmd->arguments[2] && cmd->arguments[3]) {
+		snprintf(expr_buffer, sizeof(expr_buffer), "%s %s %s", 
+		         cmd->arguments[1], cmd->arguments[2], cmd->arguments[3]);
+
+		// Expand $? in the expression
+		expand_dollar_question(expr_buffer, *exit_status);
+		printf("Expanded expression: %s\n", expr_buffer);
+
+		// Evaluate the expression
+		*exit_status = evaluate_expr(expr_buffer);
+	    } else {
+		write(STDERR_FILENO, "Invalid expression\n", 19);
+		return -1;
+	    }
+
+	}     
+        
+            else if (initialize_command(cmd) == -1) {
+                write(STDERR_FILENO, "Error initializing command\n", 27);
+                return (-1);
+            }
+            return create_process(cmd, exit_status);
+        }
+    }
 }
 
 // ******************            signals            ****************************
@@ -1880,7 +2058,7 @@ void free_command_list(t_command *head) {
     }
 }
 
-int	execute_and_reset(t_command *cmd)
+int	execute_and_reset(t_command *cmd, int *exit_status)
 {
 	int	status;
 	t_TokenizerState state;
@@ -1889,7 +2067,7 @@ int	execute_and_reset(t_command *cmd)
 		return (0);
 	else
 	{	
-		status = execute_command(cmd);
+        	status = execute_command(cmd, exit_status);
 		reset_pipe_fds(cmd);
 		free_command_list(cmd);
 	}
@@ -1910,6 +2088,8 @@ void	execute_loop(void)
 	while (1)
 	{
 		command = readline("minishell> ");
+		if (!command)
+		    break;
 		if (handle_command_input(command))
 			break ;
 		if (is_empty_command(command))
@@ -1952,13 +2132,13 @@ void	execute_loop(void)
                 ptr++;
             }
         }
-        
+        expand_dollar_question(command, exit_status);
 		add_to_history(command);
 		cmd = parse_command(command);
 		free(command);		
 		if (cmd == NULL)
 			continue ;
-		exit_status = execute_and_reset(cmd);
+            execute_and_reset(cmd, &exit_status);
 		if (exit_status == 1)
 			break; // Exit the loop if g_exit_status is set to 1
 	}
@@ -1969,6 +2149,7 @@ int	main(void)
     struct termios term;
         int exit_status;
 
+	exit_status = 0;
 	handle_signals();
 	setup_terminal(&g_orig_term);
 	execute_loop();
