@@ -1,7 +1,7 @@
-// update 29/09/2024 9:40
-// to do closing here-document
-// to do norminette
+// update 02/10/2024 20:55
 // to do memory leaks
+// to do norminette
+
 
 # include <stdio.h>
 # include <stdlib.h>
@@ -61,6 +61,14 @@ typedef struct s_parse_context {
 	int			arg_index;
 } t_parse_context;
 
+typedef struct s_input_state
+{
+    int in_single_quotes;
+    int in_double_quotes;
+    int heredoc_active;
+    char *heredoc_delim;
+} t_input_state;
+
 /*/ ******************   check funtion   ******************************
 void	print_command_structure(t_command *cmd)
 {
@@ -68,40 +76,50 @@ void	print_command_structure(t_command *cmd)
 
 	while (cmd != NULL)
 	{
-		if (cmd->command)
-			printf("Command: %s\n", cmd->command);
-		if (cmd->arguments)
-		{
-			printf("Arguments:\n");
-			for (i = 0; cmd->arguments[i] != NULL; i++)
-			{
-				printf("\t[%d]: *%s*\n", i, cmd->arguments[i]);
-			}
-		}
+		printf("Command: \n");
+//		if (cmd->command)
+//			printf("Command: %s\n", cmd->command);
+		printf("Arguments:\n");
+		printf("cmd->prev_input_file:%d\n", cmd->prev_input_file);
+//		if (cmd->arguments)
+//		{
+//			printf("Arguments:\n");
+//			for (i = 0; cmd->arguments[i] != NULL; i++)
+//			{
+//				printf("\t[%d]: *%s*\n", i, cmd->arguments[i]);
+//			}
+//		}
 
 		// Print file redirections
-		if (cmd->input_file)
-			printf("Input file: %s\n", cmd->input_file);
-		if (cmd->output_file)
-			printf("Output file: %s\n", cmd->output_file);
-		if (cmd->append_file)
-			printf("Append file: %s\n", cmd->append_file);
+		printf("Input file: \n");
+//		if (cmd->input_file)
+//			printf("Input file: %s\n", cmd->input_file);
+		printf("Output file: \n");
+//		if (cmd->output_file)
+//			printf("Output file: %s\n", cmd->output_file);
+		printf("Append file: \n");
+//		if (cmd->append_file)
+//			printf("Append file: %s\n", cmd->append_file);
 
 		// Print heredoc information
-		if (cmd->heredoc_delim)
-			printf("heredoc_delim: %s\n", cmd->heredoc_delim);
-		if (cmd->heredoc_content)
-			printf("heredoc_content: %s\n", cmd->heredoc_content);
-		if (cmd->close_heredoc_delim)
-			printf("close_heredoc_delim: %s\n", cmd->close_heredoc_delim);
+		printf("heredoc_delim: \n");
+//		if (cmd->heredoc_delim)
+//			printf("heredoc_delim: %s\n", cmd->heredoc_delim);
+		printf("heredoc_content: \n");
+//		if (cmd->heredoc_content)
+//			printf("heredoc_content: %s\n", cmd->heredoc_content);
+		printf("close_heredoc_delim: \n");
+//		if (cmd->close_heredoc_delim)
+//			printf("close_heredoc_delim: %s\n", cmd->close_heredoc_delim);
 
 		// Print file descriptors (if you're using them)
 		printf("Input FD: %d\n", cmd->input_fd);
 		printf("Output FD: %d\n", cmd->output_fd);
 
 		// Print pipe info (if any)
-		if (cmd->pipe_fd[0] != -1 && cmd->pipe_fd[1] != -1)
-			printf("Pipe FD: [%d, %d]\n", cmd->pipe_fd[0], cmd->pipe_fd[1]);
+		printf("Pipe FD: \n");
+//		if (cmd->pipe_fd[0] != -1 && cmd->pipe_fd[1] != -1)
+//			printf("Pipe FD: [%d, %d]\n", cmd->pipe_fd[0], cmd->pipe_fd[1]);
 
 		// Check if the command executed successfully
 		printf("Executed successfully: %d\n", cmd->executed_successfully);
@@ -109,6 +127,7 @@ void	print_command_structure(t_command *cmd)
 		// Move to the next command in the pipeline (if any)
 		cmd = cmd->next;
 	}
+	printf("Command_structure_end: \n");
 }
 
 //*/
@@ -236,6 +255,11 @@ size_t	my_strspn(const char *s1, const char *s2)
 	return (count);
 }
 
+void my_itoa(int value, char *str) {
+    sprintf(str, "%d", value);  // Use sprintf or another safe way to convert int to string
+}
+
+/*/
 void my_itoa(int num, char *str) {
     int i = 0;
     int is_negative = 0;
@@ -273,6 +297,7 @@ void my_itoa(int num, char *str) {
         end--;
     }
 }
+//*/
 
 char	*initialize_token(t_TokenizerState *state, char *str, \
 		const char *delim)
@@ -350,7 +375,6 @@ char	*handle_non_token_redirection(t_TokenizerState *state, char *token)
 	separ_spec_char[len] = '\0';
 	
 	result = ft_strdup(separ_spec_char);
-	printf("332 result %s\n", result);
 	free(separ_spec_char);
 	return (result);
 }
@@ -683,6 +707,7 @@ t_command	*create_command(int max_args)
 	}
 	cmd->command = NULL;
 	cmd->prev_input_file  = false;
+	printf("\n*%d\n", cmd->prev_input_file);
 	cmd->input_file = NULL;
 	cmd->prev_output_file  = false;
 	cmd->output_file = NULL;
@@ -711,14 +736,15 @@ t_command	*create_command(int max_args)
 		cmd->arguments[i] = NULL;
 	}
 //*/	
-	cmd->environment_variables = malloc(sizeof(char *) * (max_args + 1));
+	cmd->environment_variables = malloc(sizeof(char *) * (65));
 	if (!cmd->environment_variables)
 	{
 		perror("malloc");
+		free(cmd->arguments);
 		free(cmd);
 		exit(EXIT_FAILURE);
 	}
-	for (int i = 0; i <= 64; i++) {
+	for (int i = 0; i < 65; i++) {
 		cmd->environment_variables[i] = NULL;
 	}
 //*/
@@ -1600,9 +1626,6 @@ void expand_dollar_question(char *input, int exit_status) {
 
     // Convert exit_status to string using custom itoa
     my_itoa(exit_status, buffer);
-
-    // Debug: Print the input before expansion
-    printf("Original input: %s\n", input);
     
     // Replace all occurrences of "$?" with the exit status
     while ((pos = strstr(pos, "$?")) != NULL) {
@@ -1612,7 +1635,6 @@ void expand_dollar_question(char *input, int exit_status) {
     }
 
     // Debug: Print the input after expansion
-    printf("Expanded input: %s\n", input);
 }
 
 int	check_command(t_command *cmd)
@@ -1802,18 +1824,7 @@ int create_process(t_command *cmd, int *exit_status) {
 int execute_command(t_command *cmd, int *exit_status) {
     if (is_builtin(cmd)) {
         return execute_builtin(cmd);
-    } 
-    else {
-        // Regular command execution
-        if (cmd->next) {
-            if (setup_pipes(cmd) == -1) {
-                write(STDERR_FILENO, "Error setting up pipes for pipeline\n", 36);
-                return (-1);
-            }
-            return execute_pipeline(cmd);
-        } else {
-        
-		if (strcmp(cmd->command, "expr") == 0) {
+    }else if (strcmp(cmd->command, "expr") == 0) {
 	    // Handle "expr" command
 	    char expr_buffer[128];  // Adjust size as needed
 	    if (cmd->arguments[1] && cmd->arguments[2] && cmd->arguments[3]) {
@@ -1822,7 +1833,7 @@ int execute_command(t_command *cmd, int *exit_status) {
 
 		// Expand $? in the expression
 		expand_dollar_question(expr_buffer, *exit_status);
-		printf("Expanded expression: %s\n", expr_buffer);
+
 
 		// Evaluate the expression
 		*exit_status = evaluate_expr(expr_buffer);
@@ -1830,10 +1841,22 @@ int execute_command(t_command *cmd, int *exit_status) {
 		write(STDERR_FILENO, "Invalid expression\n", 19);
 		return -1;
 	    }
-
-	}     
+            return create_process(cmd, exit_status);
+	}
+    
+     
+    else {
+        // Regular command execution
+        if (cmd->next) {
+            if (setup_pipes(cmd) == -1) {
+                write(STDERR_FILENO, "Error setting up pipes for pipeline\n", 36);
+                return (-1);
+            }
+            return execute_pipeline(cmd);
+        }      
         
-            else if (initialize_command(cmd) == -1) {
+            else {
+            if (initialize_command(cmd) == -1) {
                 write(STDERR_FILENO, "Error initializing command\n", 27);
                 return (-1);
             }
@@ -1969,179 +1992,310 @@ t_command	*parse_command(char *command)
 	return (cmd);
 }
 
-void free_command_fields(t_command *command) {
-    if (command->command) {
-        free(command->command);
-        command->command = NULL;
-    }
+void	free_command_fields(t_command *command)
+{
+	if (command->command)
+	{
+		free(command->command);
+		command->command = NULL;
+	}
 }
 
-void free_arguments(t_command *command) {
-    if (command->arguments) {
-        for (int i = 0; i <= 64; i++) {
-            if (command->arguments[i] != NULL) {
-                free(command->arguments[i]);
-                command->arguments[i] = NULL;
-            }
-        }
-        free(command->arguments);
-        command->arguments = NULL;
-    }
+void	free_arguments(t_command *command)
+{
+	int	i;
+
+	if (command->arguments)
+	{
+		i = 0;
+		while (i <= 64)
+		{
+			if (command->arguments[i] != NULL)
+			{
+				free(command->arguments[i]);
+				command->arguments[i] = NULL;
+			}
+			i++;
+		}
+		free(command->arguments);
+		command->arguments = NULL;
+	}
 }
 
-void free_files(t_command *command) {
-    if (command->input_file) {
-        free(command->input_file);
-        command->input_file = NULL;
-    }
-    if (command->output_file) {
-        free(command->output_file);
-        command->output_file = NULL;
-    }
-    if (command->append_file) {
-        free(command->append_file);
-        command->append_file = NULL;
-    }
+void	free_files(t_command *command)
+{
+	if (command->input_file)
+	{
+		free(command->input_file);
+		command->input_file = NULL;
+	}
+	if (command->output_file)
+	{
+		free(command->output_file);
+		command->output_file = NULL;
+	}
+	if (command->append_file)
+	{
+		free(command->append_file);
+		command->append_file = NULL;
+	}
 }
 
-void free_heredoc(t_command *command) {
-    if (command->heredoc_delim) {
-        free(command->heredoc_delim);
-        command->heredoc_delim = NULL;
-    }
-    if (command->close_heredoc_delim) {
-        free(command->close_heredoc_delim);
-        command->close_heredoc_delim = NULL;
-    }
-    if (command->heredoc_content) {
-        free(command->heredoc_content);
-        command->heredoc_content = NULL;
-    }
+void	free_heredoc(t_command *command)
+{
+	if (command->heredoc_delim)
+	{
+		free(command->heredoc_delim);
+		command->heredoc_delim = NULL;
+	}
+	if (command->close_heredoc_delim)
+	{
+		free(command->close_heredoc_delim);
+		command->close_heredoc_delim = NULL;
+	}
+	if (command->heredoc_content)
+	{
+		free(command->heredoc_content);
+		command->heredoc_content = NULL;
+	}
 }
 
-void free_environment_variables(t_command *command) {
-    if (command->environment_variables) {
-        for (int i = 0; i <= 64; i++) {
-            if (command->environment_variables[i] != NULL) {
-                free(command->environment_variables[i]);
-                command->environment_variables[i] = NULL;
-            }
-        }
-        free(command->environment_variables);
-        command->environment_variables = NULL;
-    }
+void	free_environment_variables(t_command *command)
+{
+	int	i;
+
+	if (command->environment_variables)
+	{
+		i = 0;
+		while (i <= 64)
+		{
+			if (command->environment_variables[i] != NULL)
+			{
+				free(command->environment_variables[i]);
+				command->environment_variables[i] = NULL;
+			}
+			i++;
+		}
+		free(command->environment_variables);
+		command->environment_variables = NULL;
+	}
 }
 
-void free_command(t_command *command) {
-    if (command == NULL) {
-        return;
-    }
-
-    free_command_fields(command);
-    free_arguments(command);
-    free_files(command);
-    free_heredoc(command);
-    free_environment_variables(command);
-
-    free(command);
+void	free_command(t_command *command)
+{
+	if (command == NULL)
+		return ;
+	free_command_fields(command);
+	free_arguments(command);
+	free_files(command);
+	free_heredoc(command);
+	free_environment_variables(command);
+	free(command);
 }
 
-void free_command_list(t_command *head) {
-    t_command *current;
-    t_command *next;
+void	free_command_list(t_command *head)
+{
+	t_command	*current;
+	t_command	*next;
 
-    current = head;
-    while (current != NULL) {
-        next = current->next;
-        free_command(current);
-        current = next;
-    }
+	current = head;
+//		print_command_structure(head);
+	while (current != NULL)
+	{
+		next = current->next;
+		free_command(current);
+		current = next;
+	}
+
 }
 
 int	execute_and_reset(t_command *cmd, int *exit_status)
 {
 	int	status;
-	t_TokenizerState state;
-	
-	if (state.in_quotes == true)
-		return (0);
-	else
-	{	
-        	status = execute_command(cmd, exit_status);
-		reset_pipe_fds(cmd);
-		free_command_list(cmd);
-	}
+
+	status = execute_command(cmd, exit_status);
+	reset_pipe_fds(cmd);
+	free_command_list(cmd);
 	return (status);
 }
 
-void	execute_loop(void)
+char	*combine_command(char *command, char *more_input)
 {
-	char		*command;
-	int exit_status;
-	t_command	*cmd;
-	int in_single_quotes = 0;
-    	int in_double_quotes = 0;
+	char	*new_command;
 
-	in_single_quotes = 0;
-	in_double_quotes = 0;
-	exit_status = 0;
-	while (1)
+	new_command = malloc(strlen(command) + strlen(more_input) + 2);
+	if (!new_command)
 	{
-		command = readline("minishell> ");
-		if (!command)
-		    break;
-		if (handle_command_input(command))
-			break ;
-		if (is_empty_command(command))
-			continue ;
-			
-			        // Check for unclosed quotes using a while loop and pointer arithmetic
-        char *ptr = command;
-         while (*ptr != '\0') {
-            if (*ptr == '\'')
-                in_single_quotes = !in_single_quotes;
-            else if (*ptr == '"')
-                in_double_quotes = !in_double_quotes;
-            ptr++;
-        }
-        
-                // If in_quotes is true, prompt for more input to close the quotes
-         while (in_single_quotes || in_double_quotes) {
-            char *more_input = readline("> ");
-            char *new_command = malloc(strlen(command) + strlen(more_input) + 2);
-            if (!new_command) {
-                perror("malloc");
-                exit(EXIT_FAILURE);
-            }
-            strcpy(new_command, command);
-            strcat(new_command, "\n");
-            strcat(new_command, more_input);
-            free(command);
-            command = new_command;
-            free(more_input);
-
-            // Check again for unclosed quotes
-            in_single_quotes = 0;
-            in_double_quotes = 0;
-            ptr = command;
-            while (*ptr != '\0') {
-                if (*ptr == '\'')
-                    in_single_quotes = !in_single_quotes;
-                else if (*ptr == '"')
-                    in_double_quotes = !in_double_quotes;
-                ptr++;
-            }
-        }
-        expand_dollar_question(command, exit_status);
-		add_to_history(command);
-		cmd = parse_command(command);
-		free(command);		
-		if (cmd == NULL)
-			continue ;
-            execute_and_reset(cmd, &exit_status);
-		if (exit_status == 1)
-			break; // Exit the loop if g_exit_status is set to 1
+		perror("malloc");
+		free(command);
+		free(more_input);
+		exit(EXIT_FAILURE);
 	}
+	strcpy(new_command, command);
+	strcat(new_command, "\n");
+	strcat(new_command, more_input);
+	free(command);
+	free(more_input);
+	return (new_command);
+}
+
+void	check_quotes(char *command, int *in_single_quotes, \
+		int *in_double_quotes)
+{
+	char	*ptr;
+
+	ptr = command;
+	while (*ptr != '\0')
+	{
+		if (*ptr == '\'')
+			*in_single_quotes = !*in_single_quotes;
+		else if (*ptr == '"')
+			*in_double_quotes = !*in_double_quotes;
+		ptr++;
+	}
+}
+
+int	detect_heredoc(char *command, char **heredoc_delim)
+{
+	char	*ptr;
+	char	*delim_end;
+
+	ptr = command;
+	while (*ptr != '\0')
+	{
+		if (strncmp(ptr, "<<", 2) == 0)
+		{
+			ptr += 2;
+			while (*ptr == ' ' || *ptr == '\t' || *ptr == '\n')
+				ptr++;
+			*heredoc_delim = strdup(ptr);
+			delim_end = *heredoc_delim;
+			while (*delim_end != '\0' && *delim_end != ' ' && \
+				*delim_end != '\n')
+				delim_end++;
+			*delim_end = '\0';
+			return (1);
+		}
+		ptr++;
+	}
+	return (0);
+}
+
+int	handle_input_loop(char **command, t_input_state *input_state)
+{
+	char	*more_input;
+
+	while (input_state->in_single_quotes || input_state->in_double_quotes || \
+		input_state->heredoc_active)
+	{
+		more_input = readline("> ");
+		if (!more_input)
+		{
+			free(*command);
+			return (1);
+		}
+		*command = combine_command(*command, more_input);
+		check_quotes(*command, &input_state->in_single_quotes, \
+			&input_state->in_double_quotes);
+		input_state->heredoc_active = detect_heredoc(*command, \
+			&input_state->heredoc_delim);
+	}
+	if (input_state->heredoc_active)
+	{
+		free(*command);
+		return (1);
+	}
+	return (0);
+}
+
+int	process_input(char **command, t_input_state *input_state)
+{
+	input_state->heredoc_active = detect_heredoc(*command, \
+		&input_state->heredoc_delim);
+	check_quotes(*command, &input_state->in_single_quotes, \
+		&input_state->in_double_quotes);
+	return (handle_input_loop(command, input_state));
+}
+
+void free_command_and_delim(char **command, char **heredoc_delim)
+{
+	if (*command)
+	{
+		free(*command);
+		*command = NULL;
+	}
+    if (*heredoc_delim)
+    {
+        free(*heredoc_delim);
+        *heredoc_delim = NULL;
+    }
+}
+
+int	process_command_loop(char **command, char **heredoc_delim, int *exit_status, t_input_state *input_state)
+{
+	t_command		*cmd;
+	
+	printf("input_state.in_double_quotes: %d\n", input_state->in_double_quotes);
+	printf("input_state.heredoc_active: %d\n", input_state->heredoc_active);
+	printf("input_state.heredoc_delim: %s\n", input_state->heredoc_delim);
+	if (is_empty_command(*command))
+	{
+		free(*command);
+		*command = NULL;
+		return (1);
+	}
+	if (process_input(command, input_state))
+		return (1);
+	expand_dollar_question(*command, *exit_status);
+	add_to_history(*command);
+	cmd = parse_command(*command);
+	if (!cmd)
+	{
+	      free(*command);
+	          *command = NULL;
+		return (1);
+	}
+	execute_and_reset(cmd, exit_status);
+	    free(*command);
+	    *command = NULL;
+	return (0);
+}
+
+char	*get_command(void)
+{
+	char	*command;
+
+	command = readline("minishell> ");
+	if (!command || handle_command_input(command))
+	{
+	        free(command);
+		return (NULL);
+	}
+	return (command);
+}
+
+void execute_loop(void)
+{
+    char            *command;
+    int             exit_status;
+    t_input_state   input_state;
+
+    input_state.in_single_quotes = 0;
+    input_state.in_double_quotes = 0;
+    input_state.heredoc_active = 0;
+    input_state.heredoc_delim = NULL;
+    exit_status = 0;
+    while (1)
+    {
+        command = get_command();
+        if (!command)
+            break;
+        if (process_command_loop(&command, &input_state.heredoc_delim, &exit_status, &input_state))
+            continue;
+        free_command_and_delim(&command, &input_state.heredoc_delim);  // Pass by reference
+        if (exit_status == 1)
+            break;
+    }
 }
 
 int	main(void)
