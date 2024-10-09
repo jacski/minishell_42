@@ -2,6 +2,8 @@
 // to do memory leaks
 // to do norminette
 // -lreadline
+// valgrind --leak-check=full --track-origins=yes --suppressions=readline.supp ./a.out
+// gcc
 
 # include <stdio.h>
 # include <stdlib.h>
@@ -1054,6 +1056,12 @@ void	handle_heredoc_redirection(t_command *current, char **token, \
 void	handle_redirection_parse_l(t_command *current, char **token)
 {
 	t_TokenizerState	state;
+	char	*saveptr;
+	state.saveptr = NULL;
+	state.in_quotes = false;
+	state.quote_char = '\0';
+	state.heredoc_delim[0] = '\0';
+	state.prev_heredoc = false;
 
 	state.saveptr = *token;
 	if (ft_strcmp(*token, "<") == 0)
