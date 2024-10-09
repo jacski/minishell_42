@@ -1,4 +1,4 @@
-// update 09/10/2024 14:50
+// update 09/10/2024 18:50
 // to do memory leaks
 // to do norminette
 // -lreadline
@@ -74,7 +74,7 @@ typedef struct s_operands {
     int right;
 } t_operands;
 
-/*/ ******************   check funtion   ******************************
+//*/ ******************   check funtion   ******************************
 void	print_command_structure(t_command *cmd)
 {
 	int i;
@@ -1235,6 +1235,120 @@ t_command	*parse_line(char *line)
 	return (context.head);
 }
 
+// ********************             free             ***************************
+
+void	free_command_fields(t_command *command)
+{
+	if (command->command)
+	{
+		free(command->command);
+		command->command = NULL;
+	}
+}
+
+void	free_arguments(t_command *command)
+{
+	int	i;
+
+	if (command->arguments)
+	{
+		i = 0;
+		while (i <= 64 && command->arguments[i] != NULL)
+		{
+			free(command->arguments[i]);
+			command->arguments[i] = NULL;
+			i++;
+		}
+		free(command->arguments);
+		command->arguments = NULL;
+	}
+}
+
+void	free_files(t_command *command)
+{
+	if (command->input_file)
+	{
+		free(command->input_file);
+		command->input_file = NULL;
+	}
+	if (command->output_file)
+	{
+		free(command->output_file);
+		command->output_file = NULL;
+	}
+	if (command->append_file)
+	{
+		free(command->append_file);
+		command->append_file = NULL;
+	}
+}
+
+void	free_heredoc(t_command *command)
+{
+	if (command->heredoc_delim)
+	{
+		free(command->heredoc_delim);
+		command->heredoc_delim = NULL;
+	}
+	if (command->close_heredoc_delim)
+	{
+		free(command->close_heredoc_delim);
+		command->close_heredoc_delim = NULL;
+	}
+	if (command->heredoc_content)
+	{
+		free(command->heredoc_content);
+		command->heredoc_content = NULL;
+	}
+}
+
+void	free_environment_variables(t_command *command)
+{
+	int	i;
+
+	if (command->environment_variables)
+	{
+		i = 0;
+		while (i <= 64)
+		{
+			if (command->environment_variables[i] != NULL)
+			{
+				free(command->environment_variables[i]);
+				command->environment_variables[i] = NULL;
+			}
+			i++;
+		}
+		free(command->environment_variables);
+		command->environment_variables = NULL;
+	}
+}
+
+void	free_command(t_command *command)
+{
+	if (command == NULL)
+		return ;
+	free_command_fields(command);
+	free_arguments(command);
+	free_files(command);
+	free_heredoc(command);
+	free_environment_variables(command);
+	free(command);
+}
+
+void	free_command_list(t_command *head)
+{
+	t_command	*current;
+	t_command	*next;
+
+	current = head;
+	while (current != NULL)
+	{
+		next = current->next;
+		free_command(current);
+		current = next;
+	}
+}
+
 // ******************            is_builtin           **************************
 
 int	handle_input_redirection_builtin(t_command *cmd, int *saved_stdin)
@@ -1404,8 +1518,9 @@ int	handle_env(void)
 	return (0);
 }
 
-int	handle_exit(void)
+int	handle_exit(t_command *cmd)
 {
+	free_command_list(cmd);
 	write(1, "Exiting...\n", 12);
 	exit(0);
 }
@@ -1438,7 +1553,7 @@ int	execute_builtin_command(t_command *cmd)
 	if (ft_strcmp(cmd->command, "cd") == 0)
 		return (execute_cd(cmd));
 	else if (ft_strcmp(cmd->command, "exit") == 0)
-		return (handle_exit());
+		return (handle_exit(cmd));
 	else if (ft_strcmp(cmd->command, "echo") == 0)
 		return (execute_echo(cmd));
 	else if (ft_strcmp(cmd->command, "pwd") == 0)
@@ -2230,7 +2345,7 @@ int	execute_command(t_command *cmd, int *exit_status)
 	if (is_builtin(cmd))
 		result = execute_builtin(cmd);
 	else
-		result = handle_regular_command(cmd, exit_status);
+		result = handle_regular_command(cmd, exit_status);	
 	if (result != 0)
 		return (result);
 	return (result);
@@ -2361,118 +2476,6 @@ t_command	*parse_command(char *command)
 		write(STDERR_FILENO, "Failed to parse command\n", 24);
 	}
 	return (cmd);
-}
-
-void	free_command_fields(t_command *command)
-{
-	if (command->command)
-	{
-		free(command->command);
-		command->command = NULL;
-	}
-}
-
-void	free_arguments(t_command *command)
-{
-	int	i;
-
-	if (command->arguments)
-	{
-		i = 0;
-		while (i <= 64 && command->arguments[i] != NULL)
-		{
-			free(command->arguments[i]);
-			command->arguments[i] = NULL;
-			i++;
-		}
-		free(command->arguments);
-		command->arguments = NULL;
-	}
-}
-
-void	free_files(t_command *command)
-{
-	if (command->input_file)
-	{
-		free(command->input_file);
-		command->input_file = NULL;
-	}
-	if (command->output_file)
-	{
-		free(command->output_file);
-		command->output_file = NULL;
-	}
-	if (command->append_file)
-	{
-		free(command->append_file);
-		command->append_file = NULL;
-	}
-}
-
-void	free_heredoc(t_command *command)
-{
-	if (command->heredoc_delim)
-	{
-		free(command->heredoc_delim);
-		command->heredoc_delim = NULL;
-	}
-	if (command->close_heredoc_delim)
-	{
-		free(command->close_heredoc_delim);
-		command->close_heredoc_delim = NULL;
-	}
-	if (command->heredoc_content)
-	{
-		free(command->heredoc_content);
-		command->heredoc_content = NULL;
-	}
-}
-
-void	free_environment_variables(t_command *command)
-{
-	int	i;
-
-	if (command->environment_variables)
-	{
-		i = 0;
-		while (i <= 64)
-		{
-			if (command->environment_variables[i] != NULL)
-			{
-				free(command->environment_variables[i]);
-				command->environment_variables[i] = NULL;
-			}
-			i++;
-		}
-		free(command->environment_variables);
-		command->environment_variables = NULL;
-	}
-}
-
-void	free_command(t_command *command)
-{
-	if (command == NULL)
-		return ;
-	free_command_fields(command);
-	free_arguments(command);
-	free_files(command);
-	free_heredoc(command);
-	free_environment_variables(command);
-	free(command);
-}
-
-void	free_command_list(t_command *head)
-{
-	t_command	*current;
-	t_command	*next;
-
-	current = head;
-	while (current != NULL)
-	{
-		next = current->next;
-		free_command(current);
-		current = next;
-	}
 }
 
 int	execute_and_reset(t_command *cmd, int *exit_status)
@@ -2701,12 +2704,10 @@ void	execute_loop(void)
 		command = get_command();
 		if (!command)
 			break ;
-
 		if (process_command_loop(&command, &input_state.heredoc_delim, \
 			&exit_status, &input_state))
 			continue ;
 		free_command_and_delim(&command, &input_state.heredoc_delim);
-
 	}
 	if (input_state.heredoc_delim)
 		free(input_state.heredoc_delim);
