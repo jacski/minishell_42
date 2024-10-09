@@ -1,7 +1,7 @@
-// update 09/09/2024 14:50
+// update 09/10/2024 14:50
 // to do memory leaks
 // to do norminette
-
+// -lreadline
 
 # include <stdio.h>
 # include <stdlib.h>
@@ -2096,7 +2096,7 @@ char	*get_command_path(t_command *cmd, int *exit_status)
 	command_path = find_command_in_path(cmd->command);
 	if (!command_path)
 	{
-		write(STDERR_FILENO, "Command not found or PATH is not set\n", 36);
+		write(STDERR_FILENO, "Command not found or PATH is not set\n", 37);
 		*exit_status = 127;
 	}
 	return (command_path);

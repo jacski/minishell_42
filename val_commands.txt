@@ -1,0 +1,100 @@
+cc handle_norm.c -lreadline -o handle_norm
+ PATH=/nfs/homes/jkalinow/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin
+ /bin/ls
+ /bin/echo "Hello, Minishell!"
+ /bin/pwd
+ cd /nfs/homes/jkalinow/Minishell_process (cd is a shell built-in command, not an executable file located in /bin)
+ /bin/env
+ /bin/date >> dziennik.log
+ /bin/grep "avocado" fruits.txt
+ /bin/cat test.txt
+ /bin/awk '{print $2}' test.txt
+ /bin/sort testfile.txt
+ /bin/wc -l testfile.txt
+ /bin/sed 's/line/LINE/' test.txt
+ 
+ echo "Test" > testfile.txt
+ echo "Appended Line" >> testfile
+ txt
+ cat << ABC
+This is line 1
+This is line 2
+ABC
+
+ cat << ABC
+This is line 1
+This is line 2
+ABC123
+ ABC
+
+ ls -l > lista_plikow.txt
+ cat < fruits.txt
+ grep "apple" < fruits.txt
+ grep "avocado" < fruits.txt | sort > sorted_fruits.txt | sed 's/avocado/pear/' > test.txt
+ grep "avocado" < fruits.txt | sort > sorted_fruits.txt | sed 's/avocado/pear/' > test.txt | wc -l > test_fruits.txt
+ 
+ env
+ 
+ export MYVAR=123
+ echo $MYVAR
+ env
+ export MYVAR=2024
+ echo $MYVAR
+ env
+ unset MYVAR
+ env
+ 
+ echo "Jacek ty lobuzie"
+ echo -n "Jacek ty lobuzie"
+ 
+ ls -l
+ wc -l testfile.txt (number of lines)
+ wc -l -w testfile.txt (+ number of words)
+ wc -l -w -c testfile.txt (+ number of bytes)
+ wc -l -w -c -m -c testfile.txt (+ number of characters)
+ wc -l -w -c -m -c -L testfile.txt (+ length of the longest line)
+ 
+ ls
+ echo "Hello, Minishell!"
+ pwd
+ cd /nfs/homes/jkalinow/Minishell_process (cd is a shell built-in command, not an executable file located in /bin)
+ env
+ date >> dziennik.log
+ grep "avocado" fruits.txt
+ cat test.txt
+ awk '{print $2}' test.txt
+ sort testfile.txt
+ wc -l testfile.txt
+ cat test.txt
+ sed 's/line/LINE/' test.txt
+ unset PATH
+ 
+ ls
+ cat fruits.txt
+ sort fruits.txt
+ 
+ exit
+ exit 1
+ 
+ /bin/ls test.txt
+ echo $?
+ /bin/ls filethatdoesntexist
+ echo $?
+ expr $? + $?
+ 
+cat lista_plikow.txt | grep txt
+cat fruits.txt | grep "a" | sort
+cat fruits.txt | grep "a" | sort | wc -l
+ps aux | grep bash > lista_procesow_bash.txt
+grep "apple" < fruits.txt | sort > sorted_fruits.txt
+ls | grep "file" > output.txt
+ 
+ctrl-c
+ctrl-\
+ctrl-d (empty/fullfiled prompt/)
+history
+
+echo $PATH
+echo $USER
+
+ Hello, 'world! This' is a \"test, example\"."
